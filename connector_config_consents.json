@@ -1,0 +1,15 @@
+{
+  "name": "datagen-consents",
+  "config": {
+    "connector.class": "io.confluent.kafka.connect.datagen.DatagenConnector",
+    "kafka.topic": "consents",
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "io.confluent.connect.avro.AvroConverter",
+    "value.converter.schemas.enable": "true",
+    "value.converter.schema.registry.url": "http://localhost:8081",
+    "schema.filename": "consent-schema.avsc",
+    "schema.keyfield": "customerId",
+    "iterations": 40,
+    "tasks.max": "1"
+  }
+}

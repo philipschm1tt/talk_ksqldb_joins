@@ -1,0 +1,25 @@
+{
+  "namespace": "de.philip-schmitt",
+  "type": "record",
+  "name": "ContactMail",
+  "fields": [
+    {
+      "name": "customerId",
+      "type": {
+        "type": "string",
+        "arg.properties": {
+          "regex": "user_[1-8]"
+        }
+      }
+    },
+    {
+      "name": "contactMailAddress",
+      "type": {
+        "type": "string",
+        "arg.properties": {
+          "regex": "email_[1-9]{1,4}"
+        }
+      }
+    }
+  ]
+}

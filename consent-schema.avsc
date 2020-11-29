@@ -1,0 +1,53 @@
+{
+  "namespace": "de.philip-schmitt",
+  "type": "record",
+  "name": "Consent",
+  "fields": [
+    {
+      "name": "customerId",
+      "type": {
+        "type": "string",
+        "arg.properties": {
+          "regex": "user_[1-9]"
+        }
+      }
+    },
+    {
+      "name": "hashedCustomerId",
+      "type": {
+        "type": "string",
+        "arg.properties": {
+          "regex": "[a-zA-Z]{20}"
+        }
+      }
+    },
+    {
+      "name": "consents",
+      "type": {
+        "type": "map",
+        "values": "boolean",
+        "arg.properties": {
+          "options": [
+            {
+              "company1": true,
+              "company2": true
+            },
+            {
+              "company1": true,
+              "company2": false
+            },
+            {
+              "company1": false,
+              "company2": true
+            },
+            {
+              "company1": false,
+              "company2": false
+            }
+          ]
+        }
+      },
+      "default": {}
+    }
+  ]
+}
