@@ -2,7 +2,7 @@
   "name": "datagen-consents",
   "config": {
     "connector.class": "io.confluent.kafka.connect.datagen.DatagenConnector",
-    "kafka.topic": "consents",
+    "kafka.topic": "customer_consents",
     "key.converter": "org.apache.kafka.connect.storage.StringConverter",
     "value.converter": "io.confluent.connect.avro.AvroConverter",
     "value.converter.schemas.enable": "true",

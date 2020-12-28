@@ -21,5 +21,6 @@ services:
     container_name: ksqldb-cli
     depends_on:
       - ksqldb-server
+    network_mode: host
     entrypoint: /bin/sh
     tty: true

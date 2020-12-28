@@ -7,10 +7,10 @@
 
 1. Start Confluent Platform locally
 
-confluent local services start
+confluent local services schema-registry start
 
-    Optional: partial
-        confluent local services schema-registry start
+    Optional: start all
+       confluent local services start
 
 
 2. Create topics
@@ -20,32 +20,73 @@ kafka-topics --create \
   --replication-factor 1 \
   --partitions 4 \
   --config "cleanup.policy=compact" \
-  --topic consents
+  --topic customer_consents
 
 kafka-topics --create \
   --bootstrap-server localhost:9092 \
   --replication-factor 1 \
   --partitions 4 \
   --config "cleanup.policy=compact" \
-  --topic contactmails
+  --topic customer_accounts
 
-curl -X POST -H "Content-Type:application/json" -d"{\"schema\":$(jq tostring consent-schema.avsc)}" http://localhost:8081/subjects/consents-value/versions
-curl -X POST -H "Content-Type:application/json" -d"{\"schema\":$(jq tostring contactmail-schema.avsc)}" http://localhost:8081/subjects/contactmails-value/versions
+curl -X POST -H "Content-Type:application/json" -d"{\"schema\":$(jq tostring consent-schema.avsc)}" http://localhost:8081/subjects/customer_consents-value/versions
 
+    Optional: Avro for contactmail
+        curl -X POST -H "Content-Type:application/json" -d"{\"schema\":$(jq tostring contactmail-schema.avsc)}" http://localhost:8081/subjects/customer_accounts-value/versions
 
 3. Generate Data
 
-curl -X POST -H "Content-Type: application/json" \
-  --data @connector_config_contactmails.json http://localhost:8083/connectors
+kafka-console-producer --topic customer_accounts --broker-list localhost:9092 \
+  --property parse.key=true \
+  --property key.separator=";"
 
-curl -X POST -H "Content-Type: application/json" \
-  --data @connector_config_consents.json http://localhost:8083/connectors
+user_1;{"customerId": "user_1", "contactMailAddress": "email_1"}
+user_2;{"customerId": "user_2", "contactMailAddress": "email_2"}
+user_3;{"customerId": "user_3", "contactMailAddress": "email_3"}
+user_4;{"customerId": "user_4", "contactMailAddress": "email_4"}
+user_5;{"customerId": "user_5", "contactMailAddress": "email_5"}
+user_6;{"customerId": "user_6", "contactMailAddress": "email_6"}
+user_7;{"customerId": "user_7", "contactMailAddress": "email_7"}
+user_8;{"customerId": "user_8", "contactMailAddress": "email_8"}
+
+
+kafka-avro-console-producer \
+ --broker-list localhost:9092 \
+ --topic customer_consents  \
+ --property parse.key=true \
+ --property key.separator=";" \
+ --property key.serializer=org.apache.kafka.common.serialization.StringSerializer \
+ --property schema.registry.url=http://localhost:8081 \
+ --property value.schema="$(jq tostring -r consent-schema.avsc)"
+
+user_1;{"customerId": "user_1", "hashedCustomerId": "hashforuser1", "consents": {"retargeter1": true, "retargeter2": true}}
+user_2;{"customerId": "user_2", "hashedCustomerId": "hashforuser2", "consents": {"retargeter1": false, "retargeter2": false}}
+user_3;{"customerId": "user_3", "hashedCustomerId": "hashforuser3", "consents": {"retargeter1": true, "retargeter2": true}}
+user_4;{"customerId": "user_4", "hashedCustomerId": "hashforuser4", "consents": {"retargeter1": false, "retargeter2": false}}
+user_5;{"customerId": "user_5", "hashedCustomerId": "hashforuser5", "consents": {"retargeter1": true, "retargeter2": true}}
+user_6;{"customerId": "user_6", "hashedCustomerId": "hashforuser6", "consents": {"retargeter1": false, "retargeter2": false}}
+user_7;{"customerId": "user_7", "hashedCustomerId": "hashforuser7", "consents": {"retargeter1": true, "retargeter2": true}}
+user_8;{"customerId": "user_8", "hashedCustomerId": "hashforuser8", "consents": {"retargeter1": false, "retargeter2": false}}
+user_9;{"customerId": "user_9", "hashedCustomerId": "hashforuser9", "consents": {"retargeter1": true, "retargeter2": true}}
+user_10;{"customerId": "user_10", "hashedCustomerId": "hashforuser10", "consents": {"retargeter1": false, "retargeter2": false}}
+
+
+    Optional:
+        curl -X POST -H "Content-Type: application/json" \
+          --data @connector_config_contactmails.json http://localhost:8083/connectors
+
+        curl -X POST -H "Content-Type: application/json" \
+          --data @connector_config_consents.json http://localhost:8083/connectors
 
 
 4. Check data
 
-docker run --network="host" -t edenhill/kafkacat:1.6.0 -b localhost:9092 -t consents -r http://localhost:8081 -s value=avro -C -e
-docker run --network="host" -t edenhill/kafkacat:1.6.0 -b localhost:9092 -t contactmails -r http://localhost:8081 -s value=avro -C -e
+docker run --network="host" -t edenhill/kafkacat:1.6.0 -b localhost:9092 -t customer_consents -r http://localhost:8081 -s value=avro -C -e
+
+docker run --network="host" -t edenhill/kafkacat:1.6.0 -b localhost:9092 -t customer_accounts -C -e
+
+    Optional: Avro for contactmail
+        docker run --network="host" -t edenhill/kafkacat:1.6.0 -b localhost:9092 -t customer_accounts -r http://localhost:8081 -s value=avro -C -e
 
 
 5. Start ksql locally
@@ -53,65 +94,68 @@ docker run --network="host" -t edenhill/kafkacat:1.6.0 -b localhost:9092 -t cont
 LOG_DIR=$CONFLUENT_HOME/ksql_logs ksql
 
     Optional: via docker
-        docker-compose
-        docker exec -it ksqldb-cli ksql http://ksqldb-server:8088
+        docker-compose up
+        docker exec -it ksqldb-cli ksql http://localhost:8088
 
 
 6. Inspect topics
 
 show topics;
-print 'contactmails' from beginning;
-print 'consents' from beginning;
+print 'customer_accounts' from beginning;
+print 'customer_consents' from beginning;
 
 
 7. "Just join the two topics"
 
 SET 'auto.offset.reset' = 'earliest';
 
-CREATE TABLE contact_mails (key_customerid VARCHAR PRIMARY KEY, contactMailAddress VARCHAR)
-    WITH (kafka_topic='contactmails', value_format='avro');
+CREATE TABLE customer_accounts (key_customerid VARCHAR PRIMARY KEY, contactMailAddress VARCHAR)
+    WITH (kafka_topic='customer_accounts', value_format='json');
 
-SELECT * FROM contact_mails EMIT CHANGES LIMIT 5;
+SELECT * FROM customer_accounts EMIT CHANGES LIMIT 5;
 
-CREATE STREAM consents (key_customerid VARCHAR KEY)
-    WITH (kafka_topic='consents', value_format='avro');
+CREATE STREAM customer_consents (key_customerid VARCHAR KEY)
+    WITH (kafka_topic='customer_consents', value_format='avro');
 
-SELECT * FROM consents EMIT CHANGES LIMIT 5;
+SELECT * FROM customer_consents EMIT CHANGES LIMIT 5;
 
-SELECT consents.key_customerid AS key_customerid,
-       consents.customerId,
-       consents.hashedCustomerId,
-       contact_mails.contactMailAddress AS contactMailAddress,
-       consents.consents['company1'] AS consentToCompany1
-   FROM consents
-   LEFT JOIN contact_mails ON consents.key_customerid = contact_mails.key_customerid
-   EMIT CHANGES LIMIT 9;
-
-CREATE STREAM consent_withmails_liketutorial
-    WITH (kafka_topic='consentsWithContactMailsLikeTutorial',
-          value_format='avro') AS
-    SELECT consents.key_customerid AS key_customerid,
-           consents.customerId,
-           consents.hashedCustomerId,
-           contact_mails.contactMailAddress AS contactMailAddress,
-           consents.consents['company1'] AS consentToCompany1
-    FROM consents
-    LEFT JOIN contact_mails ON consents.key_customerid = contact_mails.key_customerid;
+SELECT customer_consents.key_customerid AS key_customerid,
+       customer_consents.customerId,
+       customer_consents.hashedCustomerId,
+       customer_accounts.contactMailAddress AS contactMailAddress,
+       customer_consents.consents['retargeter2'] AS consentToRetargeter2
+   FROM customer_consents
+   LEFT JOIN customer_accounts ON customer_consents.key_customerid = customer_accounts.key_customerid
+   EMIT CHANGES LIMIT 10;
 
 
-//Table to query
-CREATE STREAM contact_mails_changelog (key_customerid VARCHAR KEY, contactMailAddress VARCHAR)
-    WITH (kafka_topic='contactmails', value_format='avro');
+    optional:
+        CREATE STREAM customer_consents_withmails_liketutorial
+            WITH (kafka_topic='customer_consents_withmails_liketutorial',
+                  value_format='avro') AS
+            SELECT customer_consents.key_customerid AS key_customerid,
+                   customer_consents.customerId,
+                   customer_consents.hashedCustomerId,
+                   customer_accounts.contactMailAddress AS contactMailAddress,
+                   customer_consents.consents['retargeter2'] AS consentToRetargeter2
+            FROM customer_consents
+            LEFT JOIN customer_accounts ON customer_consents.key_customerid = customer_accounts.key_customerid;
 
-CREATE TABLE contact_mails_materialized AS
-    SELECT key_customerid, LATEST_BY_OFFSET(contactMailAddress)
-    FROM contact_mails_changelog
-    GROUP BY key_customerid
-    EMIT CHANGES;
 
-SELECT * FROM contact_mails_materialized WHERE key_customerid='user_9';
+    optional:
+        //Table to query
+        CREATE STREAM customer_accounts_changelog (key_customerid VARCHAR KEY, contactMailAddress VARCHAR)
+            WITH (kafka_topic='customer_accounts', value_format='avro');
 
-    //alternative: dump data to file and search in file
+        CREATE TABLE customer_accounts_materialized AS
+            SELECT key_customerid, LATEST_BY_OFFSET(contactMailAddress)
+            FROM customer_accounts_changelog
+            GROUP BY key_customerid
+            EMIT CHANGES;
+
+        SELECT * FROM customer_accounts_materialized WHERE key_customerid='user_9';
+
+            //alternative: dump data to file and search in file
 
 
 8. Write messages manually
@@ -126,25 +170,25 @@ kafka-topics --create \
   --config "cleanup.policy=compact" \
   --topic philip.contactmails
 
-docker run --network="host" -v /home/philip/Projects/playground/ksqlDB:/mnt/data -t edenhill/kafkacat:1.6.0 \
+docker run --network="host" -v /home/philip/Projects/playground/ksqlDB-joins:/mnt/data -t edenhill/kafkacat:1.6.0 \
 -b localhost:9092 -t philip.contactmails -P -K ";" -z lz4 -T -l /mnt/data/contactmails_dump
 
 CREATE TABLE contact_mails_dump (key_customerid VARCHAR PRIMARY KEY, contactMailAddress VARCHAR)
     WITH (kafka_topic='philip.contactmails', value_format='JSON', wrap_single_value=false);
 
-SELECT * FROM contact_mails_dump EMIT CHANGES LIMIT 9;
+SELECT * FROM contact_mails_dump EMIT CHANGES LIMIT 10;
 
 
 9. Join consents to dump
 
-SELECT consents.key_customerid AS key_customerid,
-       consents.customerId,
-       consents.hashedCustomerId,
+SELECT customer_consents.key_customerid AS key_customerid,
+       customer_consents.customerId,
+       customer_consents.hashedCustomerId,
        contact_mails_dump.contactMailAddress AS contactMailAddress,
-       consents.consents['company1'] AS consentToCompany1
-   FROM consents
-   LEFT JOIN contact_mails_dump ON consents.key_customerid = contact_mails_dump.key_customerid
-   EMIT CHANGES LIMIT 100;
+       customer_consents.consents['retargeter2'] AS consentToRetargeter2
+   FROM customer_consents
+   LEFT JOIN contact_mails_dump ON customer_consents.key_customerid = contact_mails_dump.key_customerid
+   EMIT CHANGES LIMIT 10;
 
 
 10. Co-Partitioned?
@@ -153,7 +197,7 @@ docker run --network="host" -t edenhill/kafkacat:1.6.0 \
 -b localhost:9092 -t philip.contactmails -C -c1 -f '%k' | hexdump -C
 
 docker run --network="host" -t edenhill/kafkacat:1.6.0 \
--b localhost:9092 -t consents -C -c1 -f '%k' | hexdump -C
+-b localhost:9092 -t customer_consents -C -c1 -f '%k' | hexdump -C
 
 ASCII CONVERTER: https://www.rapidtables.com/convert/number/hex-to-ascii.html
 
@@ -161,24 +205,26 @@ docker run --network="host" -t edenhill/kafkacat:1.6.0 \
 -b localhost:9092 -t philip.contactmails -C -e -f '%k,%p\n' > partitioning_contactmails.csv
 
 docker run --network="host" -t edenhill/kafkacat:1.6.0 \
--b localhost:9092 -t consents -C -e -f '%k,%p\n' > partitioning_consent.csv
+-b localhost:9092 -t customer_consents -C -e -f '%k,%p\n' > partitioning_consents.csv
 
-sort -t , -k 1,1 partitioning_contactmails.csv > partitioning_contactmails_sorted.csv
-sort -t , -k 1,1 partitioning_consent.csv > partitioning_consent_sorted.csv
-join -t , -1 1 -2 1 partitioning_contactmails_sorted.csv partitioning_consent_sorted.csv > partitioning_joined.csv
+    optional: check automated
+        sort -t , -k 1,1 partitioning_contactmails.csv > partitioning_contactmails_sorted.csv
+        sort -t , -k 1,1 partitioning_consents.csv > partitioning_consents_sorted.csv
+        dos2unix partitioning_contactmails_sorted.csv partitioning_consents_sorted.csv
+        join -t , -1 1 -2 1 partitioning_contactmails_sorted.csv partitioning_consents_sorted.csv > partitioning_joined.csv
 
-    via  https://superuser.com/a/26869
-    -t ,   : ',' is the field separator
-    -k 1,1 : character sort on 1st field
-    -1 1   : file 1, 1st field
-    -2 1   : file 2, 1st field
-    >      : output to file
+        via  https://superuser.com/a/26869
+        -t ,   : ',' is the field separator
+        -k 1,1 : character sort on 1st field
+        -1 1   : file 1, 1st field
+        -2 1   : file 2, 1st field
+        >      : output to file
 
-regex remove lines where not same number twice?
+        regex remove lines where not same number twice?
 
-    sed -i.old -r '/^.*?,(0,0|1,1|2,2|3,3|4,4|5,5|6,6|7,7|8,8|9,9|10,10)$/d' partitioning_joined.csv
+            sed -i.old -r '/^.*?,(0,0|1,1|2,2|3,3|4,4|5,5|6,6|7,7|8,8|9,9|10,10)$/d' partitioning_joined.csv
 
-    via https://stackoverflow.com/a/10822959
+            via https://stackoverflow.com/a/10822959
 
 
 11. Write mails manually 2
@@ -190,24 +236,41 @@ kafka-topics --create \
   --config "cleanup.policy=compact" \
   --topic philip.contactmailsWithCorrectPartitions
 
-docker run --network="host" -v /home/philip/Projects/playground/ksqlDB:/mnt/data -t edenhill/kafkacat:1.6.0 \
+docker run --network="host" -v /home/philip/Projects/playground/ksqlDB-joins:/mnt/data -t edenhill/kafkacat:1.6.0 \
 -X topic.partitioner=murmur2_random \
 -b localhost:9092 -t philip.contactmailsWithCorrectPartitions -P -K ";" -z lz4 -T -l /mnt/data/contactmails_dump
 
 docker run --network="host" -t edenhill/kafkacat:1.6.0 \
 -b localhost:9092 -t philip.contactmailsWithCorrectPartitions -C -e -f 'Topic %t[%p], offset: %o, key: %k\n'
 
+
+docker run --network="host" -t edenhill/kafkacat:1.6.0 \
+-b localhost:9092 -t philip.contactmailsWithCorrectPartitions -C -e -f '%k,%p\n' > partitioning_contactmails_correctpartitions.csv
+
+sort -t , -k 1,1 partitioning_contactmails_correctpartitions.csv > partitioning_contactmails_correctpartitions_sorted.csv
+sort -t , -k 1,1 partitioning_consents.csv > partitioning_consents_sorted.csv
+dos2unix partitioning_contactmails_correctpartitions_sorted.csv partitioning_consents_sorted.csv
+join -t , -1 1 -2 1 partitioning_contactmails_correctpartitions_sorted.csv partitioning_consents_sorted.csv > partitioning_joined.csv
+
+        via  https://superuser.com/a/26869
+        -t ,   : ',' is the field separator
+        -k 1,1 : character sort on 1st field
+        -1 1   : file 1, 1st field
+        -2 1   : file 2, 1st field
+        >      : output to file
+
+
 CREATE TABLE contact_mails_dump_correct (key_customerid VARCHAR PRIMARY KEY, contactMailAddress VARCHAR)
     WITH (kafka_topic='philip.contactmailsWithCorrectPartitions', value_format='JSON', wrap_single_value=false);
 
-SELECT consents.key_customerid AS key_customerid,
-       consents.customerId,
-       consents.hashedCustomerId,
+SELECT customer_consents.key_customerid AS key_customerid,
+       customer_consents.customerId,
+       customer_consents.hashedCustomerId,
        contact_mails_dump_correct.contactMailAddress AS contactMailAddress,
-       consents.consents['company1'] AS consentToCompany1
-   FROM consents
-   LEFT JOIN contact_mails_dump_correct ON consents.key_customerid = contact_mails_dump_correct.key_customerid
-   EMIT CHANGES LIMIT 100;
+       customer_consents.consents['retargeter2'] AS consentToRetargeter2
+   FROM customer_consents
+   LEFT JOIN contact_mails_dump_correct ON customer_consents.key_customerid = contact_mails_dump_correct.key_customerid
+   EMIT CHANGES LIMIT 10;
 
 
 13. Messing with time
@@ -222,38 +285,38 @@ kafka-topics --create \
   --config "cleanup.policy=compact" \
   --topic philip.contactmailsWithTime
 
-docker run --network="host" -v /home/philip/Projects/playground/ksqlDB:/mnt/data -t edenhill/kafkacat:1.6.0 \
+docker run --network="host" -v /home/philip/Projects/playground/ksqlDB-joins:/mnt/data -t edenhill/kafkacat:1.6.0 \
 -X topic.partitioner=murmur2_random \
 -b localhost:9092 -t philip.contactmailsWithTime -P -K ";" -z lz4 -T -l /mnt/data/contactmails_dump_with_time
 
 CREATE TABLE contact_mails_dump_oldtimestamp (key_customerid VARCHAR PRIMARY KEY, contactMailAddress VARCHAR, artificialMessageTime VARCHAR)
     WITH (kafka_topic='philip.contactmailsWithTime', value_format='JSON', timestamp='artificialMessageTime', timestamp_format='yyyy-MM-dd HH:mm:ss');
 
-SELECT rowtime, TIMESTAMPTOSTRING(rowtime, 'yyyy-MM-dd HH:mm:ss') AS rowtime_formatted, * FROM contact_mails_dump_oldtimestamp EMIT CHANGES LIMIT 9;
+SELECT rowtime, TIMESTAMPTOSTRING(rowtime, 'yyyy-MM-dd HH:mm:ss') AS rowtime_formatted, * FROM contact_mails_dump_oldtimestamp EMIT CHANGES LIMIT 10;
 
-SELECT rowtime, TIMESTAMPTOSTRING(rowtime, 'yyyy-MM-dd HH:mm:ss') AS rowtime_formatted, * FROM consents EMIT CHANGES;
+SELECT rowtime, TIMESTAMPTOSTRING(rowtime, 'yyyy-MM-dd HH:mm:ss') AS rowtime_formatted, * FROM customer_consents EMIT CHANGES;
 
 
-SELECT consents.key_customerid AS key_customerid,
-       consents.customerId,
-       consents.hashedCustomerId,
+SELECT customer_consents.key_customerid AS key_customerid,
+       customer_consents.customerId,
+       customer_consents.hashedCustomerId,
        contact_mails_dump_oldtimestamp.contactMailAddress AS contactMailAddress,
-       consents.consents['company1'] AS consentToCompany1
-   FROM consents
-   LEFT JOIN contact_mails_dump_oldtimestamp ON consents.key_customerid = contact_mails_dump_oldtimestamp.key_customerid
-   EMIT CHANGES LIMIT 100;
+       customer_consents.consents['retargeter2'] AS consentToRetargeter2
+   FROM customer_consents
+   LEFT JOIN contact_mails_dump_oldtimestamp ON customer_consents.key_customerid = contact_mails_dump_oldtimestamp.key_customerid
+   EMIT CHANGES LIMIT 10;
 
 
 14. Table-table join
 
 CREATE TABLE consents_table (key_customerid VARCHAR PRIMARY KEY)
-    WITH (kafka_topic='consents', value_format='avro');
+    WITH (kafka_topic='customer_consents', value_format='avro');
 
 SELECT consents_table.key_customerid AS key_customerid,
        consents_table.customerId,
        consents_table.hashedCustomerId,
        contact_mails_dump_correct.contactMailAddress,
-       consents_table.consents['company1'] AS consentToCompany1
+       consents_table.consents['retargeter2'] AS consentToRetargeter2
    FROM consents_table
    JOIN contact_mails_dump_correct ON consents_table.key_customerid = contact_mails_dump_correct.key_customerid
    EMIT CHANGES;

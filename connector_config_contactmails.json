@@ -2,7 +2,7 @@
   "name": "datagen-contactmails",
   "config": {
     "connector.class": "io.confluent.kafka.connect.datagen.DatagenConnector",
-    "kafka.topic": "contactmails",
+    "kafka.topic": "customer_accounts",
     "key.converter": "org.apache.kafka.connect.storage.StringConverter",
     "value.converter": "io.confluent.connect.avro.AvroConverter",
     "value.converter.schemas.enable": "true",

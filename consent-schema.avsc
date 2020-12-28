@@ -29,20 +29,20 @@
         "arg.properties": {
           "options": [
             {
-              "company1": true,
-              "company2": true
+              "retargeter1": true,
+              "retargeter2": true
             },
             {
-              "company1": true,
-              "company2": false
+              "retargeter1": true,
+              "retargeter2": false
             },
             {
-              "company1": false,
-              "company2": true
+              "retargeter1": false,
+              "retargeter2": true
             },
             {
-              "company1": false,
-              "company2": false
+              "retargeter1": false,
+              "retargeter2": false
             }
           ]
         }
