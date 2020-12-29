@@ -112,11 +112,13 @@ SET 'auto.offset.reset' = 'earliest';
 CREATE TABLE customer_accounts (key_customerid VARCHAR PRIMARY KEY, contactMailAddress VARCHAR)
     WITH (kafka_topic='customer_accounts', value_format='json');
 
+SHOW TABLES;
 SELECT * FROM customer_accounts EMIT CHANGES LIMIT 5;
 
 CREATE STREAM customer_consents (key_customerid VARCHAR KEY)
     WITH (kafka_topic='customer_consents', value_format='avro');
 
+SHOW STREAMS;
 SELECT * FROM customer_consents EMIT CHANGES LIMIT 5;
 
 SELECT customer_consents.key_customerid AS key_customerid,
