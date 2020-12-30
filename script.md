@@ -71,8 +71,9 @@
 I’m running the Confluent Platform locally using the Confluent CLI.
 You can see that it started Zookeeper, Kafka, and the Schema Registry.
 
-I did not start ksqlDB.
-At work don’t have a ksqlDB cluster yet – we haven’t used it on production before.
+    confluent local services status
+
+At work, we don’t have a ksqlDB cluster yet.
 Fortunately, I don’t need a cluster for my workaround.
 
 I just start ksqlDB locally via docker – as shown in the Quickstart on the ksqlDB.io site.
@@ -115,16 +116,17 @@ I set auto.offset.reset to earliest so that it includes data from the beginning 
      SHOW STREAMS;
      SELECT * FROM customer_consents EMIT CHANGES LIMIT 5; 
      
-As a sidenote, ksql is also useful for producing messages.
-I will update the consent for user 1 now:
-
-    INSERT INTO customer_consents VALUES('user_1','user_1','hashforuser1',MAP('retargeter1':=false, 'retargeter2':=true));
-
-    SELECT * FROM CUSTOMER_CONSENTS EMIT CHANGES;
-
-This also gives you some validation – ksqlDB knows the schema.
-
-    INSERT INTO customer_consents VALUES('user_1','user_1',false,MAP('retargeter1':=false, 'retargeter2':=true));
+     Optional
+        As a sidenote, ksql is also useful for producing messages.
+        I will update the consent for user 1 now:
+        
+            INSERT INTO customer_consents VALUES('user_1','user_1','hashforuser1',MAP('retargeter1':=false, 'retargeter2':=true));
+        
+            SELECT * FROM CUSTOMER_CONSENTS EMIT CHANGES;
+        
+        This also gives you some validation – ksqlDB knows the schema.
+        
+            INSERT INTO customer_consents VALUES('user_1','user_1',false,MAP('retargeter1':=false, 'retargeter2':=true));
 
 So now we can perform the join – just like in the tutorial.
 
@@ -139,7 +141,7 @@ So now we can perform the join – just like in the tutorial.
 
 That looks almost good.
 We have a pretty full table with all the customer IDs, the hashed customer IDs, and the consent to retargeter 2.
-We also see a lot of the correct email addresses – so the join worked!
+We also see a lot of the correct email addresses. So the join worked!
 BUT: we see some nulls in the contactmailaddress column.
 
 That is not what we expected! And for a legal issue the current output is not sufficient – we have to fix it.
@@ -160,9 +162,9 @@ kafkacat is a powerful CLI tool to consume and produce Kafka messages.
     //consume the first couple of messages from JSON
     kafkacat -b localhost:9092 -t customer_accounts -C -c5
 
-    //consume the first couple of messages from Avro
-    docker run --network="host" -t edenhill/kafkacat:1.6.0 -b localhost:9092 -t customer_consents -r http://localhost:8081 -s value=avro -C -c5
-    //For the Avro example I used kafkacat from docker – my Arch Linux installation of kafkacat refuses to consume Avro
+        //consume the first couple of messages from Avro
+        docker run --network="host" -t edenhill/kafkacat:1.6.0 -b localhost:9092 -t customer_consents -r http://localhost:8081 -s value=avro -C -c5
+        //For the Avro example I used kafkacat from docker – my Arch Linux installation of kafkacat refuses to consume Avro
 
 At this point, kafkacat looks comparable to to bundled Kafka command line tools, but we will shortly see that it is more powerful.
 
