@@ -79,8 +79,6 @@ Fortunately, I don’t need a cluster for my workaround.
 I just start ksqlDB locally via docker – as shown in the Quickstart on the ksqlDB.io site.
 
 I have a docker-compose.yml – copied from ksqlDB.io – that points to my locally running Confluent Platform.
-But I could just as well point it to any other cluster.
-
 
     docker-compose up
     docker exec -it ksqldb-cli ksql http://localhost:8088
@@ -115,18 +113,6 @@ I set auto.offset.reset to earliest so that it includes data from the beginning 
      
      SHOW STREAMS;
      SELECT * FROM customer_consents EMIT CHANGES LIMIT 5; 
-     
-     Optional
-        As a sidenote, ksql is also useful for producing messages.
-        I will update the consent for user 1 now:
-        
-            INSERT INTO customer_consents VALUES('user_1','user_1','hashforuser1',MAP('retargeter1':=false, 'retargeter2':=true));
-        
-            SELECT * FROM CUSTOMER_CONSENTS EMIT CHANGES;
-        
-        This also gives you some validation – ksqlDB knows the schema.
-        
-            INSERT INTO customer_consents VALUES('user_1','user_1',false,MAP('retargeter1':=false, 'retargeter2':=true));
 
 So now we can perform the join – just like in the tutorial.
 
@@ -158,18 +144,20 @@ The customer_accounts topic was incomplete!
 # Demo 2: Write Messages Manually
 
 kafkacat is a powerful CLI tool to consume and produce Kafka messages.
+Let’s look at a simple kafkacat command.
 
-    //consume the first couple of messages from JSON
     kafkacat -b localhost:9092 -t customer_accounts -C -c5
 
-        //consume the first couple of messages from Avro
-        docker run --network="host" -t edenhill/kafkacat:1.6.0 -b localhost:9092 -t customer_consents -r http://localhost:8081 -s value=avro -C -c5
-        //For the Avro example I used kafkacat from docker – my Arch Linux installation of kafkacat refuses to consume Avro
+We call kafkacat with my local Kafka broker and the topic customer_accounts.
+We use -C for the consumer mode and -c5 to consume the first five messages in the topic.
 
 At this point, kafkacat looks comparable to to bundled Kafka command line tools, but we will shortly see that it is more powerful.
 
+---
 
 I queried the email addresses from the database into the file contactmails_dump
+
+    cat contactmails_dump
 
 Now we’ll create a new topic for the mails:
 
@@ -222,27 +210,6 @@ That is, the keys have to match and every key must be in the same partition for 
 
 Let’s debug the join.
 
-First, let’s see if the keys are the same.
-We used different methods to produce the messages and we assume that the keys are simple strings that only contain the customer ID.
-Here we can use kafkacat again to look at the keys in detail.
-
-    kafkacat -b localhost:9092 -t philip.contactmails -C -c1 -f '%k' | hexdump -C
-    
-    kafkacat -b localhost:9092 -t customer_consents -C -c1 -f '%k' | hexdump -C
-
-    echo 75 73 65 72 5f 31 | xxd -r -p
-    echo 75 73 65 72 5f 38 | xxd -r -p
-
-    //alternative: ASCII CONVERTER: https://www.rapidtables.com/convert/number/hex-to-ascii.html
-
-We can see that the keys contain just the ASCII characters without any other bytes.
-That is what we expected!
-If the keys were using Avro, for example, there would be more to the keys than just the customer IDs.
-
-So we have verified that the keys are good.
-Now lets look at the partitions.
-We will use kafkacat again.
-
     kafkacat -b localhost:9092 -t philip.contactmails -C -e -f '%k,%p\n' > partitioning_contactmails.csv
     
     kafkacat -b localhost:9092 -t customer_consents -C -e -f '%k,%p\n' > partitioning_consents.csv
@@ -254,12 +221,15 @@ Here we use the format flag -f and specify the format: %k represents the key, %p
     sort -t , -k 1,1 partitioning_contactmails.csv > partitioning_contactmails_sorted.csv
     sort -t , -k 1,1 partitioning_consents.csv > partitioning_consents_sorted.csv
 
-    cat partitioning_contactmails.csv
-    cat partitioning_consents.csv
+    cat partitioning_contactmails_sorted.csv
+    cat partitioning_consents_sorted.csv
 
 We can easily see that the partitions don’t match!
 
-It turns out that kafkacat does not use the same default partitioner as other Kafka client!
+After some googling, I found out that kafkacat does not use the same default partitioner as other Kafka client!
+Ironically, is both the tool that helped me debug the co-partitioning 
+as well as the tool that is responsible for breaking the co-partitioning in the first place.
+
 But we can specify the right partitioner when we produce data.
 
 First, we’ll create a new clean topic contactmailsWithCorrectPartitions.
@@ -297,7 +267,8 @@ Now we can use the join command to make the comparison easier.
 We can now easily see that the last two numbers are always the same. 
 The key on the left lands in the same partitions for both topics!
 
-All right, let’s try the join again!
+All right, the co-partitioning is fixed now.
+Let’s try the join again!
 
     CREATE TABLE contact_mails_dump_correct (key_customerid VARCHAR PRIMARY KEY, contactMailAddress VARCHAR)
         WITH (kafka_topic='philip.contactmailsWithCorrectPartitions', value_format='JSON', wrap_single_value=false);
@@ -318,9 +289,9 @@ The contactmailaddress column is still empty!
 
 ---
 
-# Demo #: Dealing with Time
+# Demo 3: Dealing with Time
 
-Let’s start with time travel.
+Let’s try the time travel approach.
 
 I prepared a file contactmails_dump_with_time
 
@@ -365,6 +336,52 @@ You can see that now the contactmailaddress column is complete.
 We have now succeeded an can perform a GDPR-compliant explicit opt-out for retargeter 2.
 Now the marketing department can use retargeter 2 again for retargeting and everyone is happy.
 
+# Backup
+
+## Producing messages with KSQL
+
+As a sidenote, ksql is also useful for producing messages.
+I will update the consent for user 1 now:
+
+    INSERT INTO customer_consents VALUES('user_1','user_1','hashforuser1',MAP('retargeter1':=false, 'retargeter2':=true));
+
+    SELECT * FROM CUSTOMER_CONSENTS EMIT CHANGES;
+
+This also gives you some validation – ksqlDB knows the schema.
+
+    INSERT INTO customer_consents VALUES('user_1','user_1',false,MAP('retargeter1':=false, 'retargeter2':=true));
+
+## kafkacat consume Avro
+
+To use Avro, I use kafkacat from docker – my Arch Linux installation of kafkacat refuses to consume Avro
+
+    docker run --network="host" -t edenhill/kafkacat:1.6.0 -b localhost:9092 -t customer_consents -r http://localhost:8081 -s value=avro -C -c5
+
+## Check keys
+
+First, let’s see if the keys are the same.
+We used different methods to produce the messages and we assume that the keys are simple strings that only contain the customer ID.
+Here we can use kafkacat again to look at the keys in detail.
+
+    kafkacat -b localhost:9092 -t philip.contactmails -C -c1 -f '%k' | hexdump -C
+    
+    kafkacat -b localhost:9092 -t customer_consents -C -c1 -f '%k' | hexdump -C
+
+    echo 75 73 65 72 5f 31 | xxd -r -p
+    echo 75 73 65 72 5f 38 | xxd -r -p
+
+    //alternative: ASCII CONVERTER: https://www.rapidtables.com/convert/number/hex-to-ascii.html
+
+We can see that the keys contain just the ASCII characters without any other bytes.
+That is what we expected!
+If the keys were using Avro, for example, there would be more to the keys than just the customer IDs.
+
+So we have verified that the keys are good.
+Now lets look at the partitions.
+We will use kafkacat again.
+
+
+## Table-Table Join
 
 For completeness sake, we’ll have a look at the second option: the table–table join.
 
@@ -389,9 +406,10 @@ But in the end, the contactmail messages will trigger another message with compl
 
 You can see that for every one of the ten customers there is a complete message somewhere in there.
 
-
 # Cleanup
 
-docker-compose down
-
-confluent local destroy
+    docker-compose down
+    
+    confluent local destroy
+    
+    clear
