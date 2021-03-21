@@ -69,7 +69,7 @@
 # Demo 1: Basic Stream–Table Join
 
 I’m running the Confluent Platform locally using the Confluent CLI.
-You can see that it started Zookeeper, Kafka, and the Schema Registry.
+You can see that I started Zookeeper, Kafka, and the Schema Registry.
 
     confluent local services status
 
@@ -78,7 +78,9 @@ Fortunately, I don’t need a cluster for my workaround.
 
 I just start ksqlDB locally via docker – as shown in the Quickstart on the ksqlDB.io site.
 
-I have a docker-compose.yml – copied from ksqlDB.io – that points to my locally running Confluent Platform.
+I have a docker-compose file that points to my locally running Confluent Platform.
+It start the ksqldb-server and the ksqldb-cli.
+Then I can connect to the ksqldb-cli via docker.
 
     docker-compose up
     docker exec -it ksqldb-cli ksql http://localhost:8088
@@ -87,13 +89,13 @@ I have a docker-compose.yml – copied from ksqlDB.io – that points to my loca
 Let’s have a look at the data.
 First, we can check what topics there are.
 
-    show topics;
+    SHOW TOPICS;
 
 We can see the customer_accounts and customer_consents topics.
 We can also look at the content of the topics.
 
-    print 'customer_accounts' from beginning;
-    print 'customer_consents' from beginning;
+    PRINT 'customer_accounts' FROM BEGINNING;
+    PRINT 'customer_consents' FROM BEGINNING;
 
 For the join, we want to include all existing data.
 I set auto.offset.reset to earliest so that it includes data from the beginning of the topics.
@@ -105,13 +107,23 @@ I set auto.offset.reset to earliest so that it includes data from the beginning 
      CREATE TABLE customer_accounts (key_customerid VARCHAR PRIMARY KEY, contactMailAddress VARCHAR)
          WITH (kafka_topic='customer_accounts', value_format='json');
      
-     SHOW TABLES;
+We create the table customer_accounts from the existing customer_accounts JSON topic.
+We explicitly specify the key and the contact mail address columns.
+
+With a simple query we can look at the first five rows in ksqlDB.     
+The data looks correct.
+     
      SELECT * FROM customer_accounts EMIT CHANGES LIMIT 5;
+     
+Then we create the customer_consents stream from the existing customer_consents Avro topic.     
+We just specify the key – ksqlDB infers the schema for the other columns usign the Schema Registry. 
      
      CREATE STREAM customer_consents (key_customerid VARCHAR KEY)
          WITH (kafka_topic='customer_consents', value_format='avro');
      
-     SHOW STREAMS;
+Let's look at the first couple of rows in the stream.
+We can see that ksqlDB shows all data from the input topic.
+
      SELECT * FROM customer_consents EMIT CHANGES LIMIT 5; 
 
 So now we can perform the join – just like in the tutorial.
@@ -135,7 +147,7 @@ That is not what we expected! And for a legal issue the current output is not su
 I quickly realized that this was a data quality issue.
 The customer_accounts topic was incomplete!
 
-    print 'customer_accounts' from beginning;
+    PRINT 'customer_accounts' FROM BEGINNING;
     
 => BACK TO SLIDES
 
@@ -168,7 +180,7 @@ Now we’ll create a new topic for the mails:
       --config "cleanup.policy=compact" \
       --topic philip.contactmails
 
-Now we will produce Kafka messages from the contactmails_dump using kafkacat.
+We will produce Kafka messages from the contactmails_dump using kafkacat.
 
     kafkacat -b localhost:9092 -t philip.contactmails -P -K ";" -z lz4 -T -l contactmails_dump
     
@@ -188,6 +200,8 @@ Now we create a new table from this topic in ksqlDB.
 
 I used wrap_single_value=false here.
 The data in the messages are simple strings – not JSON objects with a key and a value.
+
+We can now see the complete contact mail address data in ksqlDB.
 
 Now let’s try our luck again and join to the new topic.
 
@@ -263,6 +277,12 @@ Now we can use the join command to make the comparison easier.
         -1 1   : file 1, 1st field
         -2 1   : file 2, 1st field
         >      : output to file
+        
+    cat partitioning_joined.csv
+    
+We joined the two CSV files on the customer ID column.
+The joined file has the customer ID key in the first column, followed by two numbers.
+First, the partition of the key in the contact mails topic, then the partition of the key in the consents topic.
 
 We can now easily see that the last two numbers are always the same. 
 The key on the left lands in the same partitions for both topics!
