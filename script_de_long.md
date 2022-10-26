@@ -158,22 +158,22 @@ Die customer_accounts waren unvollständig.
 
 # Demo 2: Write Messages Manually
 
-kafkacat ist ein mächtiges CLI Tool um Kafka nachrichten zu lesen und zu schreiben.
-Wir schauen einen einfachen kafkacat Befehl an.
+kcat ist ein mächtiges CLI Tool um Kafka nachrichten zu lesen und zu schreiben.
+Wir schauen einen einfachen kcat Befehl an.
 
-    kafkacat -b localhost:9092 -t customer_accounts -C -c5
+    kcat -b localhost:9092 -t customer_accounts -C -c5
 
-Wir rufen kafkacat mit dem lokalen Kafka Broker und dem Topic customer_accounts auf.
+Wir rufen kcat mit dem lokalen Kafka Broker und dem Topic customer_accounts auf.
 Wir benutzen -C für den Consumer-Modus und -c5 um nur die ersten fünf Nachrichten im Topic zu lesen.
 
 
-kafkacat kann auch Avro-Nachrichten konsumieren.
-Dazu benutze ich kafkacat mittels docker – meine Arch Linux Installation von kafkakcat weigert sich, Avro zu benutzen.
+kcat kann auch Avro-Nachrichten konsumieren.
+Dazu benutze ich kcat mittels docker – meine Arch Linux Installation von kafkakcat weigert sich, Avro zu benutzen.
 
-    docker run --network="host" -t edenhill/kafkacat:1.6.0 -b localhost:9092 -t customer_consents -r http://localhost:8081 -s value=avro -C -c5
+    docker run --network="host" -t edenhill/kcat:1.7.1 -b localhost:9092 -t customer_consents -r http://localhost:8081 -s value=avro -C -c5
 
 
-Bis jetzt sieht kafkacat ähnlich aus wie der kafka-console-consumer, der in Kafka enthalten ist.
+Bis jetzt sieht kcat ähnlich aus wie der kafka-console-consumer, der in Kafka enthalten ist.
 Wir werden aber gleich sehen, dass es noch mehr kann.
 
 ---
@@ -191,9 +191,9 @@ Wir erstellen ein neues Topic für die Addressen.
       --config "cleanup.policy=compact" \
       --topic philip.contactmails
 
-Jetzt benutzen wir kafkacat um die Zeilen aus der Datei nach Kafka zu schreiben.
+Jetzt benutzen wir kcat um die Zeilen aus der Datei nach Kafka zu schreiben.
 
-    kafkacat -b localhost:9092 -t philip.contactmails -P -K ";" -z lz4 -T -l contactmails_dump
+    kcat -b localhost:9092 -t philip.contactmails -P -K ";" -z lz4 -T -l contactmails_dump
     
 We use 
 -P for the producer mode, 
@@ -238,11 +238,11 @@ Erst schauen wir uns an, ob die Schlüssel in beiden Topics gleich sind.
 Wir haben verschiedenen Methoden benutzt, um die Nachrichten zu schreiben.
 Wir nehmen an, dass die Schlüssel einfach simple Strings sind, die nur die customerId enthalten.
 
-Mit kafkacat können wir uns das genau anschauen.
+Mit kcat können wir uns das genau anschauen.
 
-    kafkacat -b localhost:9092 -t philip.contactmails -C -c1 -f '%k' | hexdump -C
+    kcat -b localhost:9092 -t philip.contactmails -C -c1 -f '%k' | hexdump -C
     
-    kafkacat -b localhost:9092 -t customer_consents -C -c1 -f '%k' | hexdump -C
+    kcat -b localhost:9092 -t customer_consents -C -c1 -f '%k' | hexdump -C
 
     echo 75 73 65 72 5f 31 | xxd -r -p
     echo 75 73 65 72 5f 38 | xxd -r -p
@@ -257,8 +257,8 @@ Wir haben also verifiziert, dass die Keys gleich sind.
 Wenn wir Avro oder Json Schemas benutzt hätten, könnten wir sehen, dass zusätzliche Bytes existieren.
 Das können wir kurz anhand der Values ausprobieren. 
 
-    kafkacat -b localhost:9092 -t customer_accounts -C -c1 -f '%s' | hexdump -C
-    kafkacat -b localhost:9092 -t customer_consents -C -c1 -f '%s' | hexdump -C
+    kcat -b localhost:9092 -t customer_accounts -C -c1 -f '%s' | hexdump -C
+    kcat -b localhost:9092 -t customer_consents -C -c1 -f '%s' | hexdump -C
     
 Die ersten fünf Bytes im Avro-Value sind dabei interessant.
 Sie kommen aus dem Confuent Avro Format.
@@ -271,11 +271,11 @@ Es wäre also denkbar, dass man Schlüssel mit der gleichen customerId haben kö
 ---
 
 Jetzt schauen wir uns die Partitionen an.
-Wir benutzen wieder Kafkacat.
+Wir benutzen wieder kcat.
 
-    kafkacat -b localhost:9092 -t philip.contactmails -C -e -f '%k,%p\n' > partitioning_contactmails.csv
+    kcat -b localhost:9092 -t philip.contactmails -C -e -f '%k,%p\n' > partitioning_contactmails.csv
     
-    kafkacat -b localhost:9092 -t customer_consents -C -e -f '%k,%p\n' > partitioning_consents.csv
+    kcat -b localhost:9092 -t customer_consents -C -e -f '%k,%p\n' > partitioning_consents.csv
 
 Wir benutzen das "format" Flag -f und geben das Vormat vor: %k repräsentiert den key, %p die Partition.
 
@@ -289,8 +289,8 @@ Wir benutzen das "format" Flag -f und geben das Vormat vor: %k repräsentiert de
 
 Wir können schnell sehen, dass die Partitionen nicht matchen!
 
-Nach etwas googlen habe ich gefunden, dass kafkacat nicht den selben Standard-Partitioner benutzt wie andere Kafka Clients.
-Ironischerweise ist kafkacat jetzt sowohl das Tool, das mir geholfen hat, das Co-Partitioning zu debuggen,
+Nach etwas googlen habe ich gefunden, dass kcat nicht den selben Standard-Partitioner benutzt wie andere Kafka Clients.
+Ironischerweise ist kcat jetzt sowohl das Tool, das mir geholfen hat, das Co-Partitioning zu debuggen,
 als auch das Tool, das dafür verantwortlich war, dass das Co-Partitioning gebrochen ist.
 
 Wir können den richtigen Partitioner angeben wenn wir Daten schreiben.
@@ -304,14 +304,14 @@ Wir erstellen erst ein neues, saubeser Topic contactmailsWithCorrectPartitions.
       --config "cleanup.policy=compact" \
       --topic philip.contactmailsWithCorrectPartitions
 
-Jetzt produzieren wir die Daten erneut mit kafkacat. Dieses Mal mit murmur2_random Partitioner.
+Jetzt produzieren wir die Daten erneut mit kcat. Dieses Mal mit murmur2_random Partitioner.
 
-    kafkacat -X topic.partitioner=murmur2_random -b localhost:9092 -t philip.contactmailsWithCorrectPartitions -P -K ";" -z lz4 -T -l contactmails_dump
+    kcat -X topic.partitioner=murmur2_random -b localhost:9092 -t philip.contactmailsWithCorrectPartitions -P -K ";" -z lz4 -T -l contactmails_dump
 
 Wir vergleichen wieder die Partitionierung.
-Ich benutze kafkacat um die Schlüssel und Partitionen in eine Datei zu schreiben und sortiere die Datei.
+Ich benutze kcat um die Schlüssel und Partitionen in eine Datei zu schreiben und sortiere die Datei.
 
-    kafkacat -b localhost:9092 -t philip.contactmailsWithCorrectPartitions -C -e -f '%k,%p\n' > partitioning_contactmails_correctpartitions.csv
+    kcat -b localhost:9092 -t philip.contactmailsWithCorrectPartitions -C -e -f '%k,%p\n' > partitioning_contactmails_correctpartitions.csv
 
     sort -t , -k 1,1 partitioning_contactmails_correctpartitions.csv > partitioning_contactmails_correctpartitions_sorted.csv
 
@@ -367,7 +367,7 @@ Wir schreiben die Datei nach Kafka wie zuvor.
       --config "cleanup.policy=compact" \
       --topic philip.contactmailsWithTime
 
-    kafkacat -X topic.partitioner=murmur2_random -b localhost:9092 -t philip.contactmailsWithTime -P -K ";" -z lz4 -T -l contactmails_dump_with_time
+    kcat -X topic.partitioner=murmur2_random -b localhost:9092 -t philip.contactmailsWithTime -P -K ";" -z lz4 -T -l contactmails_dump_with_time
 
 Jetzt erstellen wir eine neue Tabelle.
 

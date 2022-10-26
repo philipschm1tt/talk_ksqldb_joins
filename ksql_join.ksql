@@ -81,12 +81,12 @@ user_10;{"customerId": "user_10", "hashedCustomerId": "hashforuser10", "consents
 
 4. Check data
 
-docker run --network="host" -t edenhill/kafkacat:1.6.0 -b localhost:9092 -t customer_consents -r http://localhost:8081 -s value=avro -C -e
+docker run --network="host" -t edenhill/kcat:1.7.1 -b localhost:9092 -t customer_consents -r http://localhost:8081 -s value=avro -C -e
 
-docker run --network="host" -t edenhill/kafkacat:1.6.0 -b localhost:9092 -t customer_accounts -C -e
+docker run --network="host" -t edenhill/kcat:1.7.1 -b localhost:9092 -t customer_accounts -C -e
 
     Optional: Avro for contactmail
-        docker run --network="host" -t edenhill/kafkacat:1.6.0 -b localhost:9092 -t customer_accounts -r http://localhost:8081 -s value=avro -C -e
+        docker run --network="host" -t edenhill/kcat:1.7.1 -b localhost:9092 -t customer_accounts -r http://localhost:8081 -s value=avro -C -e
 
 
 5. Start ksql locally
@@ -172,7 +172,7 @@ kafka-topics --create \
   --config "cleanup.policy=compact" \
   --topic philip.contactmails
 
-docker run --network="host" -v /home/philip/Projects/playground/ksqlDB-joins:/mnt/data -t edenhill/kafkacat:1.6.0 \
+docker run --network="host" -v /home/philip/Projects/playground/ksqlDB-joins:/mnt/data -t edenhill/kcat:1.7.1 \
 -b localhost:9092 -t philip.contactmails -P -K ";" -z lz4 -T -l /mnt/data/contactmails_dump
 
 CREATE TABLE contact_mails_dump (key_customerid VARCHAR PRIMARY KEY, contactMailAddress VARCHAR)
@@ -195,18 +195,18 @@ SELECT customer_consents.key_customerid AS key_customerid,
 
 10. Co-Partitioned?
 
-docker run --network="host" -t edenhill/kafkacat:1.6.0 \
+docker run --network="host" -t edenhill/kcat:1.7.1 \
 -b localhost:9092 -t philip.contactmails -C -c1 -f '%k' | hexdump -C
 
-docker run --network="host" -t edenhill/kafkacat:1.6.0 \
+docker run --network="host" -t edenhill/kcat:1.7.1 \
 -b localhost:9092 -t customer_consents -C -c1 -f '%k' | hexdump -C
 
 ASCII CONVERTER: https://www.rapidtables.com/convert/number/hex-to-ascii.html
 
-docker run --network="host" -t edenhill/kafkacat:1.6.0 \
+docker run --network="host" -t edenhill/kcat:1.7.1 \
 -b localhost:9092 -t philip.contactmails -C -e -f '%k,%p\n' > partitioning_contactmails.csv
 
-docker run --network="host" -t edenhill/kafkacat:1.6.0 \
+docker run --network="host" -t edenhill/kcat:1.7.1 \
 -b localhost:9092 -t customer_consents -C -e -f '%k,%p\n' > partitioning_consents.csv
 
     optional: check automated
@@ -238,15 +238,15 @@ kafka-topics --create \
   --config "cleanup.policy=compact" \
   --topic philip.contactmailsWithCorrectPartitions
 
-docker run --network="host" -v /home/philip/Projects/playground/ksqlDB-joins:/mnt/data -t edenhill/kafkacat:1.6.0 \
+docker run --network="host" -v /home/philip/Projects/playground/ksqlDB-joins:/mnt/data -t edenhill/kcat:1.7.1 \
 -X topic.partitioner=murmur2_random \
 -b localhost:9092 -t philip.contactmailsWithCorrectPartitions -P -K ";" -z lz4 -T -l /mnt/data/contactmails_dump
 
-docker run --network="host" -t edenhill/kafkacat:1.6.0 \
+docker run --network="host" -t edenhill/kcat:1.7.1 \
 -b localhost:9092 -t philip.contactmailsWithCorrectPartitions -C -e -f 'Topic %t[%p], offset: %o, key: %k\n'
 
 
-docker run --network="host" -t edenhill/kafkacat:1.6.0 \
+docker run --network="host" -t edenhill/kcat:1.7.1 \
 -b localhost:9092 -t philip.contactmailsWithCorrectPartitions -C -e -f '%k,%p\n' > partitioning_contactmails_correctpartitions.csv
 
 sort -t , -k 1,1 partitioning_contactmails_correctpartitions.csv > partitioning_contactmails_correctpartitions_sorted.csv
@@ -287,7 +287,7 @@ kafka-topics --create \
   --config "cleanup.policy=compact" \
   --topic philip.contactmailsWithTime
 
-docker run --network="host" -v /home/philip/Projects/playground/ksqlDB-joins:/mnt/data -t edenhill/kafkacat:1.6.0 \
+docker run --network="host" -v /home/philip/Projects/playground/ksqlDB-joins:/mnt/data -t edenhill/kcat:1.7.1 \
 -X topic.partitioner=murmur2_random \
 -b localhost:9092 -t philip.contactmailsWithTime -P -K ";" -z lz4 -T -l /mnt/data/contactmails_dump_with_time
 

@@ -155,15 +155,15 @@ The customer_accounts topic was incomplete!
 
 # Demo 2: Write Messages Manually
 
-kafkacat is a powerful CLI tool to consume and produce Kafka messages.
-Let’s look at a simple kafkacat command.
+kcat is a powerful CLI tool to consume and produce Kafka messages.
+Let’s look at a simple kcat command.
 
-    kafkacat -b localhost:9092 -t customer_accounts -C -c5
+    kcat -b localhost:9092 -t customer_accounts -C -c5
 
-We call kafkacat with my local Kafka broker and the topic customer_accounts.
+We call kcat with my local Kafka broker and the topic customer_accounts.
 We use -C for the consumer mode and -c5 to consume the first five messages in the topic.
 
-At this point, kafkacat looks comparable to to bundled Kafka command line tools, but we will shortly see that it is more powerful.
+At this point, kcat looks comparable to to bundled Kafka command line tools, but we will shortly see that it is more powerful.
 
 ---
 
@@ -180,9 +180,9 @@ Now we’ll create a new topic for the mails:
       --config "cleanup.policy=compact" \
       --topic philip.contactmails
 
-We will produce Kafka messages from the contactmails_dump using kafkacat.
+We will produce Kafka messages from the contactmails_dump using kcat.
 
-    kafkacat -b localhost:9092 -t philip.contactmails -P -K ";" -z lz4 -T -l contactmails_dump
+    kcat -b localhost:9092 -t philip.contactmails -P -K ";" -z lz4 -T -l contactmails_dump
     
 We use 
 -P for the producer mode, 
@@ -224,9 +224,9 @@ That is, the keys have to match and every key must be in the same partition for 
 
 Let’s debug the join.
 
-    kafkacat -b localhost:9092 -t philip.contactmails -C -e -f '%k,%p\n' > partitioning_contactmails.csv
+    kcat -b localhost:9092 -t philip.contactmails -C -e -f '%k,%p\n' > partitioning_contactmails.csv
     
-    kafkacat -b localhost:9092 -t customer_consents -C -e -f '%k,%p\n' > partitioning_consents.csv
+    kcat -b localhost:9092 -t customer_consents -C -e -f '%k,%p\n' > partitioning_consents.csv
 
 Here we use the format flag -f and specify the format: %k represents the key, %p the partition.
 
@@ -240,7 +240,7 @@ Here we use the format flag -f and specify the format: %k represents the key, %p
 
 We can easily see that the partitions don’t match!
 
-After some googling, I found out that kafkacat does not use the same default partitioner as other Kafka client!
+After some googling, I found out that kcat does not use the same default partitioner as other Kafka client!
 Ironically, is both the tool that helped me debug the co-partitioning 
 as well as the tool that is responsible for breaking the co-partitioning in the first place.
 
@@ -255,14 +255,14 @@ First, we’ll create a new clean topic contactmailsWithCorrectPartitions.
       --config "cleanup.policy=compact" \
       --topic philip.contactmailsWithCorrectPartitions
 
-Now we produce the data with kafkacat again, but this time with the murmur2_random partitioner.
+Now we produce the data with kcat again, but this time with the murmur2_random partitioner.
 
-    kafkacat -X topic.partitioner=murmur2_random -b localhost:9092 -t philip.contactmailsWithCorrectPartitions -P -K ";" -z lz4 -T -l contactmails_dump
+    kcat -X topic.partitioner=murmur2_random -b localhost:9092 -t philip.contactmailsWithCorrectPartitions -P -K ";" -z lz4 -T -l contactmails_dump
 
 Let’s compare the partitions again.
-I will use kafkacat to write keys and their partitions to a file. Then use the sort command to sort the file.
+I will use kcat to write keys and their partitions to a file. Then use the sort command to sort the file.
 
-    kafkacat -b localhost:9092 -t philip.contactmailsWithCorrectPartitions -C -e -f '%k,%p\n' > partitioning_contactmails_correctpartitions.csv
+    kcat -b localhost:9092 -t philip.contactmailsWithCorrectPartitions -C -e -f '%k,%p\n' > partitioning_contactmails_correctpartitions.csv
 
     sort -t , -k 1,1 partitioning_contactmails_correctpartitions.csv > partitioning_contactmails_correctpartitions_sorted.csv
 
@@ -326,7 +326,7 @@ Let’s write the messages with the timestamps to Kafka like before.
       --config "cleanup.policy=compact" \
       --topic philip.contactmailsWithTime
 
-    kafkacat -X topic.partitioner=murmur2_random -b localhost:9092 -t philip.contactmailsWithTime -P -K ";" -z lz4 -T -l contactmails_dump_with_time
+    kcat -X topic.partitioner=murmur2_random -b localhost:9092 -t philip.contactmailsWithTime -P -K ";" -z lz4 -T -l contactmails_dump_with_time
 
 Now we create a new table.
 
@@ -371,21 +371,21 @@ This also gives you some validation – ksqlDB knows the schema.
 
     INSERT INTO customer_consents VALUES('user_1','user_1',false,MAP('retargeter1':=false, 'retargeter2':=true));
 
-## kafkacat consume Avro
+## kcat consume Avro
 
-To use Avro, I use kafkacat from docker – my Arch Linux installation of kafkacat refuses to consume Avro
+To use Avro, I use kcat from docker – my Arch Linux installation of kcat refuses to consume Avro
 
-    docker run --network="host" -t edenhill/kafkacat:1.6.0 -b localhost:9092 -t customer_consents -r http://localhost:8081 -s value=avro -C -c5
+    docker run --network="host" -t edenhill/kcat:1.7.1 -b localhost:9092 -t customer_consents -r http://localhost:8081 -s value=avro -C -c5
 
 ## Check keys
 
 First, let’s see if the keys are the same.
 We used different methods to produce the messages and we assume that the keys are simple strings that only contain the customer ID.
-Here we can use kafkacat again to look at the keys in detail.
+Here we can use kcat again to look at the keys in detail.
 
-    kafkacat -b localhost:9092 -t philip.contactmails -C -c1 -f '%k' | hexdump -C
+    kcat -b localhost:9092 -t philip.contactmails -C -c1 -f '%k' | hexdump -C
     
-    kafkacat -b localhost:9092 -t customer_consents -C -c1 -f '%k' | hexdump -C
+    kcat -b localhost:9092 -t customer_consents -C -c1 -f '%k' | hexdump -C
 
     echo 75 73 65 72 5f 31 | xxd -r -p
     echo 75 73 65 72 5f 38 | xxd -r -p
@@ -398,7 +398,7 @@ If the keys were using Avro, for example, there would be more to the keys than j
 
 So we have verified that the keys are good.
 Now lets look at the partitions.
-We will use kafkacat again.
+We will use kcat again.
 
 
 ## Table-Table Join
